@@ -77,6 +77,10 @@ class Game:
         return self.field[r - 1:r + 2, c - 1:c + 2]
 
 
+    def getPlaysNeighborhood(self, r, c):
+        return self.plays[r - 1:r + 2, c - 1:c + 2]
+
+
     def playFlag(self, r, c):
         if r < 1 or r > self.numRows + 1 or c < 1 or c > self.numCols + 1:
             print('WARNING: out-of-bounds cell (%d, %d)' % (r, c))
