@@ -112,6 +112,7 @@ class Game:
         self.plays[r, c] = self.SHOW
         if self.field[r, c] == self.MINE:  # game over
             self.displ[r, c] = 'x'
+            self.display()
             raise Lose
         elif self.field[r, c] == 0:
             self.displ[r, c] = ' '
@@ -170,4 +171,5 @@ class Game:
                 if (self.field[r, c] != self.MINE and self.plays[r, c] != self.SHOW) or \
                    (self.field[r, c] == self.MINE and self.plays[r, c] != self.FLAG):
                     return  # not done yet
+        self.display()
         raise Win

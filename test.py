@@ -1,12 +1,8 @@
-#!/usr/bin/env python2
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Nov  8 22:23:01 2017
+from game import *
+from player import *
 
-@author: sean
-"""
-
-import game
-
-g = Game(8, 8, 0.05)
-g.playShow(1,1)
+g = Game(8, 8, 10, 3)
+playRandomCell(g)
+g.display()
+doAllDetermined(g)
+g.display()
