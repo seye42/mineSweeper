@@ -1,7 +1,7 @@
 from game import *
 from player import *
 
-g = Game(8, 8, 10, 3)
+g = Game(8, 8, 10, None)
 playRandomCell(g)
 g.display()
 doAllDetermined(g)

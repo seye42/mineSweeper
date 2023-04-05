@@ -36,15 +36,15 @@ class Game:
             # add virtual borders to simplify neighborhood-based logic near the edges
 
         # populate the field's mines
-        mineIdx = random.sample(xrange(self.numRows * self.numCols), numMines)
+        mineIdx = random.sample(range(self.numRows * self.numCols), numMines)
         for idx in mineIdx:
-            r = idx / self.numCols + 1  # +1 for virtual borders
-            c = idx % self.numCols + 1  # +1 for virtual borders
+            r = idx // self.numCols + 1  # +1 for virtual borders
+            c = idx %  self.numCols + 1  # +1 for virtual borders
             self.field[r, c] = self.MINE
 
         # populate the field's numerical clues
-        for r in xrange(1, self.numRows + 1):  # skip virtual borders
-            for c in xrange(1, self.numCols + 1):  # skip virtual borders
+        for r in range(1, self.numRows + 1):  # skip virtual borders
+            for c in range(1, self.numCols + 1):  # skip virtual borders
                 if self.field[r, c] != self.MINE:
                     self.field[r, c] = np.sum(self.getFieldNeighborhood(r, c) == self.MINE)
 
@@ -151,11 +151,14 @@ class Game:
 
 
     def display(self):
-        print('-'.join(self.displ[0, :].tostring()))
-        for r in xrange(1, self.numRows + 1):  # skip virtual borders
-            print(' '.join(self.displ[r, :].tostring()))
-        print('-'.join(self.displ[-1, :].tostring()))
-
+        print('-'.join(self.displ[0, :]))
+        for r in range(1, self.numRows + 1):  # skip virtual borders
+            print(' '.join(self.displ[r, :]))
+        print('-'.join(self.displ[-1, :]))
+        #print('-'.join(self.displ[0, :].tostring()))
+        #for r in range(1, self.numRows + 1):  # skip virtual borders
+        #    print(' '.join(self.displ[r, :].tostring()))
+        #print('-'.join(self.displ[-1, :].tostring()))
 
     def summarize(self):
         numCellShown = np.sum(self.plays == self.SHOW) - 2 * self.numCols - 2 * self.numRows - 4
@@ -164,10 +167,11 @@ class Game:
         numCellHidden = self.numRows * self.numCols - numCellShown
         return (numCellShown, numCellHidden, numCellFlag)
 
+
     def checkVictoryConditions(self):
         # check that all number cells are shown and all mines are flagged
-        for r in xrange(1, self.numRows + 1):  # skip virtual borders
-            for c in xrange(1, self.numCols + 1):  # skip virtual borders
+        for r in range(1, self.numRows + 1):  # skip virtual borders
+            for c in range(1, self.numCols + 1):  # skip virtual borders
                 if (self.field[r, c] != self.MINE and self.plays[r, c] != self.SHOW) or \
                    (self.field[r, c] == self.MINE and self.plays[r, c] != self.FLAG):
                     return  # not done yet

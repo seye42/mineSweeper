@@ -16,8 +16,8 @@ def playRandomCell(g):
 
     # find all playable cells
     playable = []
-    for r in xrange(1, g.numRows + 1):
-        for c in xrange(1, g.numCols + 1):
+    for r in range(1, g.numRows + 1):
+        for c in range(1, g.numCols + 1):
             if g.plays[r, c] != g.SHOW and g.displ[r, c] != g.FLAG:
                 playable.append((r, c))
 
@@ -47,8 +47,8 @@ def playDeterminedCells(g):
 
     # find all determined cells
     playable = []
-    for r in xrange(1, g.numRows + 1):
-        for c in xrange(1, g.numCols + 1):
+    for r in range(1, g.numRows + 1):
+        for c in range(1, g.numCols + 1):
             if g.plays[r, c] == g.SHOW:
                 neigh = g.getPlaysNeighborhood(r, c)
                 numFlags = np.sum(neigh == g.FLAG)
@@ -73,8 +73,8 @@ def flagDeterminedCells(g):
 
     # find all determined cells
     flaggable = []
-    for r in xrange(1, g.numRows + 1):
-        for c in xrange(1, g.numCols + 1):
+    for r in range(1, g.numRows + 1):
+        for c in range(1, g.numCols + 1):
             if g.plays[r, c] == g.SHOW:
                 neigh = g.getPlaysNeighborhood(r, c)
                 numFlags = np.sum(neigh == g.FLAG)
