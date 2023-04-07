@@ -10,6 +10,39 @@ class Lose(Exception):
     pass
 
 
+class DisplaySymbols:
+    # see https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
+
+    # basic symbol set
+    FLAG  = '\033[38;2;204;0;0m' + chr(182)
+    BLANK = '\033[38;2;64;64;64m' + chr(888)
+    #BLANK = '\033[48;2;64;64;64m' + ' ' + '\033[0m'
+    ONE   = '\033[38;2;0;128;255m' + '1'
+    TWO   = '\033[38;2;0;204;0m' + '2'
+    THREE = '\033[38;2;204;0;0m' + '3'
+    FOUR  = '\033[38;2;51;51;255m' + '4'
+    FIVE  = '\033[38;2;153;0;0m' + '5'
+    SIX   = '\033[38;2;0;204;204m' + '6'
+    SEVEN = '\033[38;2;128;128;128m' + '7'
+    EIGHT = '\033[38;2;192;192;192m' + '8'
+    MINE  = '\033[38;2;255;178;102m' + chr(27)
+
+    # last play background highlight toggles    
+    BKG_BEG = '\033[48;2;0;102;0m'
+    BKG_END = '\033[0m'
+
+
+    def showSymbols(self):
+        string = self.FLAG + self.BLANK + self.ONE + self.TWO + self.THREE + self.FOUR + self.FIVE + self.SIX \
+                 + self.SEVEN + self.EIGHT + self.MINE 
+        print('Basic symbol set:')
+        print(string + self.VER + self.HOR + self.UL_LR + self.UR_LL)
+        print('\nSymbols with last play background highlights:')
+        print(self.BKG_BEG + string + self.BKG_END)
+        print('\nExample with single last play symbol')
+        print(self.MINE + self.BKG_BEG + self.FLAG + self.BKG_END + self.EIGHT)
+
+
 class Game:
     # constants
     MINE = np.uint8(255)
@@ -102,6 +135,7 @@ class Game:
             print('WARNING: duplicate show requested for cell (%d, %d)' % (r, c))
             return
         self.updateShow(r, c)
+            # TODO: handle special case of can't lose on first play
         if self.field[r, c] == 0:
             self.floodFillPlay(r, c)
         self.numShowPlays += 1
@@ -155,10 +189,7 @@ class Game:
         for r in range(1, self.numRows + 1):  # skip virtual borders
             print(' '.join(self.displ[r, :]))
         print('-'.join(self.displ[-1, :]))
-        #print('-'.join(self.displ[0, :].tostring()))
-        #for r in range(1, self.numRows + 1):  # skip virtual borders
-        #    print(' '.join(self.displ[r, :].tostring()))
-        #print('-'.join(self.displ[-1, :].tostring()))
+
 
     def summarize(self):
         numCellShown = np.sum(self.plays == self.SHOW) - 2 * self.numCols - 2 * self.numRows - 4
