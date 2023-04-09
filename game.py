@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import time
 
 
 class Win(Exception):
@@ -51,12 +52,21 @@ class Game:
     FLAG_MASK = np.uint8(0x20)
     PLAY_MASK = np.uint8(0x40)
     SHOW_MASK = np.uint8(0x80)
-    VIRT = np.uint8(9)  # normal cell cannot have more than 8 surrounding mines
+    BORDER = np.uint8(9)  # normal cells cannot have more than 8 surrounding mines
 
 
     def __init__(self, numRows, numCols, numMines, randSeed=None):
+        # check that parameters are reasonable
+        if numRows < 1 or numCols < 1:
+            raise ValueError('invalid game size (%d x %d)' % (numRows, numCols))
+        if numMines < 0:
+            raise ValueError('number of mines must be non-negative')
+        if numMines > (numRows * numCols -1):
+            # there must be at least one free cell for the rule that one cannot lose on the first play
+            raise ValueError('too many mines (maximum is %d)' % (numRows * numCols - 1))
 
         # register the parameters
+        self.startTime = time.time()
         self.numRows = numRows
         self.numCols = numCols
         self.numMines = numMines
@@ -73,17 +83,15 @@ class Game:
         for idx in mineIdx:
             r = idx // numCols + 1  # +1 for virtual borders
             c = idx %  numCols + 1  # +1 for virtual borders
-            self.field[r, c] = np.bitwise_or(self.field[r, c], self.MINE_MASK)
+            self.setMine(r, c)
 
         # populate the field's numerical clues
         for r in range(1, numRows + 1):  # skip virtual borders
             for c in range(1, numCols + 1):  # skip virtual borders
-                if not self.isMine(self.field[r, c]):
-                    self.field[r, c] = np.sum(self.isMine(self.getFieldNeighborhood(r, c)))
-                        # full-byte assignments are safe since there's nothing yet set in the upper nibble
+                self.setNumber(r, c)
 
         # fill the virtual borders with a sentinal value to stop flood fill operations
-        value = np.bitwise_or(self.VIRT, self.SHOW_MASK)
+        value = np.bitwise_or(self.BORDER, self.SHOW_MASK)
         self.field[0,  :].fill(value)
         self.field[-1, :].fill(value)
         self.field[:,  0].fill(value)
@@ -97,6 +105,15 @@ class Game:
 
     def isMine(self, field):
         return np.bitwise_and(field, self.MINE_MASK).astype(bool)
+
+
+    def setMine(self, r, c):
+        self.field[r, c] = np.bitwise_and(self.field[r, c], ~self.NUM_MASK)
+        self.field[r, c] = np.bitwise_or(self.field[r, c], self.MINE_MASK)
+
+
+    def unsetMine(self, r, c):
+        self.field[r, c] = np.bitwise_and(self.field[r, c], ~self.MINE_MASK)
 
 
     def isFlagged(self, field):
@@ -123,12 +140,54 @@ class Game:
         self.field[r, c] = np.bitwise_or(self.field[r, c], self.SHOW_MASK)
 
 
+    def isBorder(self, r, c):
+        return np.bitwise_and(self.field[r, c], self.NUM_MASK) == self.BORDER
+
+
     def getNumber(self, field):
         return np.bitwise_and(field, self.NUM_MASK)
 
 
+    def setNumber(self, r, c):
+        if not self.isMine(self.field[r, c]) and not self.isBorder(r, c):
+            # preserve the upper nibble in case flags have already been set
+            upper = np.bitwise_and(self.field[r, c], ~self.NUM_MASK)
+
+            # determine lower nibble based on neighborhood
+            if r == 0 or r == self.numRows + 1 or c == 0 or c == self.numCols + 1:
+                # part of virtual border
+                lower = self.BORDER
+            else:
+                lower = np.sum(self.isMine(self.getFieldNeighborhood(r, c)))
+
+            # combine
+            self.field[r, c] = np.bitwise_or(upper, lower)
+
+
+    def setNumberNeighborhood(self, rCent, cCent):
+        for r in range(rCent - 1, rCent + 2):
+            for c in range(cCent - 1, cCent + 2):
+                self.setNumber(r, c)
+
+
     def getFieldNeighborhood(self, r, c):
         return self.field[r - 1:r + 2, c - 1:c + 2]
+
+
+    def getFirstNonMineCell(self):
+        # find the first non-mine cell in the raster sequence
+        row = 0
+        for r in range(1, self.numRows + 1):  # skip virtual borders
+            for c in range(1, self.numCols + 1):  # skip virtual borders
+                if not self.isMine(self.field[r, c]):
+                    row = r
+                    col = c
+                    break
+                    # this is guaranteed to occur to because Game's constructor checks that at
+                    # least one mine-free space always exists
+            if row > 0:
+                break
+        return (row, col)
 
 
     def getPlayable(self):
@@ -170,9 +229,24 @@ class Game:
         self.setPlayed(r, c)
         self.setShown(r, c)
         if self.isMine(self.field[r, c]):
-            self.display()
-            raise Lose
-        # TODO: handle special case of can't lose on first play
+            if self.numShowPlays == 1:  # special case of cannot lose on first play
+                # see https://web.archive.org/web/20180618103640/http://www.techuser.net/mineclick.html
+
+                # determine the first free cell the mine will be relocated to
+                (rRelo, cRelo) = self.getFirstNonMineCell()
+
+                # update the mine flags
+                self.unsetMine(r, c)
+                self.setMine(rRelo, cRelo)
+
+                # update the adjacency numbers in both the original and relocated neighborhoods
+                self.setNumberNeighborhood(r, c)
+                self.setNumberNeighborhood(rRelo, cRelo)
+            else:  # not first play: selected a mine -> game over
+                self.display()
+                self.stopTime = time.time()
+                self.elapsedTime = self.stopTime - self.startTime
+                raise Lose
         if self.getNumber(self.field[r, c]) == 0:  # empty cell -- expand
             self.floodFillPlay(r, c)
         self.checkVictoryConditions()
@@ -194,7 +268,7 @@ class Game:
             cR = cBeg + 1
             while self.getNumber(self.field[r, cR]) == 0:
                 cR += 1
-                # while loops are safe because of the self.VIRT values in the first and last
+                # while loops are safe because of the self.BORDER values in the first and last
                 # columns of self.field
             cols = range(cL, cR + 1)
 
@@ -252,4 +326,6 @@ class Game:
                    (self.isMine(self.field[r, c]) and not self.isFlagged(self.field[r, c])):
                     return  # not yet done
         self.display()
+        self.stopTime = time.time()
+        self.elapsedTime = self.stopTime - self.startTime
         raise Win
