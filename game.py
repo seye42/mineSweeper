@@ -16,16 +16,16 @@ class DisplaySymbols:
     # basic symbol set
     BLOCK = '\033[38;2;64;64;64m' + chr(888)
     FLAG  = '\033[38;2;204;0;0m' + chr(182)
-    BLANK = ' '
-    ONE   = '\033[38;2;0;128;255m' + '1'
-    TWO   = '\033[38;2;0;204;0m' + '2'
-    THREE = '\033[38;2;204;0;0m' + '3'
-    FOUR  = '\033[38;2;51;51;255m' + '4'
-    FIVE  = '\033[38;2;153;0;0m' + '5'
-    SIX   = '\033[38;2;0;204;204m' + '6'
-    SEVEN = '\033[38;2;128;128;128m' + '7'
-    EIGHT = '\033[38;2;192;192;192m' + '8'
     MINE  = '\033[38;2;255;178;102m' + chr(27)
+    NUMERALS = [' ',
+                '\033[38;2;0;128;255m'   + '1',
+                '\033[38;2;0;204;0m'     + '2',
+                '\033[38;2;204;0;0m'     + '3',
+                '\033[38;2;51;51;255m'   + '4',
+                '\033[38;2;153;0;0m'     + '5',
+                '\033[38;2;0;204;204m'   + '6',
+                '\033[38;2;128;128;128m' + '7',
+                '\033[38;2;192;192;192m' + '8']
 
     # last play background highlight toggles    
     PLAY  = '\033[48;2;0;102;0m'
@@ -33,18 +33,19 @@ class DisplaySymbols:
 
 
     def showSymbols(self):
-        string = self.BLOCK + self.FLAG + self.BLANK + self.ONE + self.TWO + self.THREE + self.FOUR + self.FIVE \
-                 + self.SIX + self.SEVEN + self.EIGHT + self.MINE
+        string = self.BLOCK + self.FLAG + self.MINE
+        for n in self.NUMERALS:
+            string += n
         print('Basic symbol set:')
         print(string + self.RESET)
         print('\nSymbols with last play background highlights:')
         print(self.PLAY + string + self.RESET)
-        print('\nExample with single last play symbol')
-        print(self.MINE + self.PLAY + self.FLAG + self.RESET + self.EIGHT)
+        print('\nExample with single last play symbol:')
+        print(self.MINE + self.PLAY + self.FLAG + self.RESET + self.NUMERALS[8])
 
 
 class Game:
-    # constants
+    # masks and constants
     NUM_MASK  = np.uint8(0x0F)
     MINE_MASK = np.uint8(0x10)
     FLAG_MASK = np.uint8(0x20)
@@ -227,31 +228,13 @@ class Game:
                     if self.isMine(self.field[r,c]):
                         symbol = s.MINE
                     else:
-                        match self.getNumber(self.field[r, c]):
-                            case 0:
-                                symbol = s.BLANK
-                            case 1:
-                                symbol = s.ONE
-                            case 2:
-                                symbol = s.TWO
-                            case 3:
-                                symbol = s.THREE
-                            case 4:
-                                symbol = s.FOUR
-                            case 5:
-                                symbol = s.FIVE
-                            case 6:
-                                symbol = s.SIX
-                            case 7:
-                                symbol = s.SEVEN
-                            case 8:
-                                symbol = s.EIGHT
+                        symbol = s.NUMERALS[self.getNumber(self.field[r, c])]
                 elif self.isFlagged(self.field[r, c]):
                     symbol = s.FLAG
                 else:  # not shown
                     symbol = s.BLOCK
                 string += prefix + symbol + postfix
-            print(string)
+            print(string + s.RESET)  # reset formatting for other stdout users
 
 
     def summarize(self):
