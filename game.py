@@ -17,19 +17,19 @@ class DisplaySymbols:
     # basic symbol set
     BLOCK = '\033[38;2;64;64;64m' + chr(888)
     FLAG  = '\033[38;2;204;0;0m' + chr(182)
-    MINE  = '\033[38;2;255;178;102m' + chr(27)
+    MINE  = '\033[38;2;255;178;102m' + 'X'
     NUMERALS = [' ',
                 '\033[38;2;0;128;255m'   + '1',
                 '\033[38;2;0;204;0m'     + '2',
                 '\033[38;2;204;0;0m'     + '3',
                 '\033[38;2;51;51;255m'   + '4',
-                '\033[38;2;153;0;0m'     + '5',
+                '\033[38;2;128;0;0m'     + '5',
                 '\033[38;2;0;204;204m'   + '6',
-                '\033[38;2;128;128;128m' + '7',
+                '\033[38;2;0;102;0m'     + '7',
                 '\033[38;2;192;192;192m' + '8']
 
     # last play background highlight toggles    
-    PLAY  = '\033[48;2;0;102;0m'
+    PLAY  = '\033[48;2;110;110;110m'
     RESET = '\033[0m'
 
 
@@ -55,7 +55,7 @@ class Game:
     BORDER = np.uint8(9)  # normal cells cannot have more than 8 surrounding mines
 
 
-    def __init__(self, numRows, numCols, numMines, randSeed=None):
+    def __init__(self, numRows, numCols, numMines, randSeed=None, printSummary=False):
         # check that parameters are reasonable
         if numRows < 1 or numCols < 1:
             raise ValueError('invalid game size (%d x %d)' % (numRows, numCols))
@@ -66,10 +66,11 @@ class Game:
             raise ValueError('too many mines (maximum is %d)' % (numRows * numCols - 1))
 
         # register the parameters
-        self.startTime = time.time()
+        self.printSummary = printSummary
         self.numRows = numRows
         self.numCols = numCols
         self.numMines = numMines
+        self.startTime = time.time()
 
         # seed the random number generator (for repeatable games)
         random.seed(randSeed)
@@ -102,6 +103,13 @@ class Game:
         self.numShowPlays = 0
         self.lastPlay = (0, 0)
 
+        # initialize cell sets
+        self.validPlays = set()
+        for r in range(1, numRows + 1):  # skip virtual borders
+            for c in range(1, numCols + 1):  # skip virtual borders
+                self.validPlays.add((r, c))
+        self.shownCells = set()
+        self.flaggedCells = set()
 
     def isMine(self, field):
         return np.bitwise_and(field, self.MINE_MASK).astype(bool)
@@ -122,6 +130,7 @@ class Game:
 
     def setFlagged(self, r, c):
         self.field[r, c] = np.bitwise_or(self.field[r, c], self.FLAG_MASK)
+        self.flaggedCells.add((r, c))
 
 
     def isPlayed(self, field):
@@ -138,6 +147,7 @@ class Game:
 
     def setShown(self, r, c):
         self.field[r, c] = np.bitwise_or(self.field[r, c], self.SHOW_MASK)
+        self.shownCells.add((r, c))
 
 
     def isBorder(self, r, c):
@@ -190,13 +200,16 @@ class Game:
         return (row, col)
 
 
-    def getPlayable(self):
-        playable = []
-        for r in range(1, self.numRows + 1):  # skip virtual borders
-            for c in range(1, self.numCols + 1):  # skip virtual borders
-                if not self.isShown(self.field[r, c]) and not self.isFlagged(self.field[r, c]):
-                    playable.append((r, c))
-        return playable
+    def getValidPlays(self):
+        return self.validPlays
+
+
+    def getFlaggedCells(self):
+        return self.flaggedCells
+
+
+    def getShownCells(self):
+        return self.shownCells
 
 
     def flagCell(self, r, c):
@@ -211,6 +224,7 @@ class Game:
             return
         self.numFlagPlays += 1
         self.setFlagged(r, c)
+        self.validPlays.discard((r, c))
         self.checkVictoryConditions()
 
 
@@ -228,6 +242,7 @@ class Game:
         self.numShowPlays += 1
         self.setPlayed(r, c)
         self.setShown(r, c)
+        self.validPlays.discard((r, c))
         if self.isMine(self.field[r, c]):
             if self.numShowPlays == 1:  # special case of cannot lose on first play
                 # see https://web.archive.org/web/20180618103640/http://www.techuser.net/mineclick.html
@@ -243,9 +258,10 @@ class Game:
                 self.setNumberNeighborhood(r, c)
                 self.setNumberNeighborhood(rRelo, cRelo)
             else:  # not first play: selected a mine -> game over
-                self.display()
                 self.stopTime = time.time()
                 self.elapsedTime = self.stopTime - self.startTime
+                if self.printSummary:
+                    self.printOutSummary()
                 raise Lose
         if self.getNumber(self.field[r, c]) == 0:  # empty cell -- expand
             self.floodFillPlay(r, c)
@@ -275,6 +291,7 @@ class Game:
             # show the swept columns and add the cells above and below where needed
             for c in cols:
                 self.setShown(r, c)
+                self.validPlays.discard((r, c))
                 num = self.getNumber(self.field[r, c])
                 if num == 0 and not self.isShown(self.field[rU, c]):
                     cells.add((rU, c))
@@ -311,21 +328,36 @@ class Game:
             print(string + s.RESET)  # reset formatting for other stdout users
 
 
-    def summarize(self):
-        numCellShown = np.sum(self.isShown(self.field[1:-1, 1:-1]))
-        numCellFlag = np.sum(self.isFlagged(self.field[1:-1, 1:-1]))
-        numCellHidden = self.numRows * self.numCols - numCellShown - numCellFlag
-        return (numCellShown, numCellFlag, numCellHidden)
-
-
     def checkVictoryConditions(self):
         # check that all number cells are shown and all mines are flagged
+        if len(self.validPlays) > 0:
+            return
         for r in range(1, self.numRows + 1):  # skip virtual borders
             for c in range(1, self.numCols + 1):  # skip virtual borders
                 if (not self.isMine(self.field[r, c]) and not self.isShown(self.field[r, c])) or \
                    (self.isMine(self.field[r, c]) and not self.isFlagged(self.field[r, c])):
                     return  # not yet done
-        self.display()
         self.stopTime = time.time()
         self.elapsedTime = self.stopTime - self.startTime
+        if self.printSummary:
+            self.printOutSummary()
         raise Win
+
+
+    def summarize(self):
+        numCellShown = np.sum(self.isShown(self.field[1:-1, 1:-1]))
+        numCellFlagged = np.sum(self.isFlagged(self.field[1:-1, 1:-1]))
+        numCellHidden = self.numRows * self.numCols - numCellShown - numCellFlagged
+        return (numCellShown, numCellFlagged, numCellHidden)
+
+
+    def printOutSummary(self):
+        self.display()
+        (numCellShown, numCellFlagged, numCellHidden) = self.summarize()
+        numCells = self.numRows * self.numCols
+        print('%d x %d (%d cells) gameboard with %d mines (%0.2f%%)' \
+              % (self.numRows, self.numCols, numCells, self.numMines, float(self.numMines) / numCells))
+        print('  cells shown:   %d (%0.2f%%)' % (numCellShown, float(numCellShown) / numCells))
+        print('  cells flagged: %d (%0.2f%%)' % (numCellFlagged, float(numCellFlagged) / numCells))
+        print('  cells hidden:  %d (%0.2f%%)' % (numCellHidden, float(numCellHidden) / numCells))
+        print('  elapsed time:  %0.3f s' % self.elapsedTime)

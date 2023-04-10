@@ -7,6 +7,11 @@ TODO: Think about what auxiliary lists make sense to build in to Game so that so
 isn't required here. Maybe that's shown and flagged lists or something similar.
 '''
 
+def basicPlayer(g):
+    while True:
+        playRandomCell(g)
+        doAllDetermined(g)
+
 
 def playRandomCell(g):
     '''
@@ -15,10 +20,10 @@ def playRandomCell(g):
     '''
 
     # get all playable cells (non-shown, non-flagged, and non-virtual border cells)
-    playable = g.getPlayable()
+    plays = g.getValidPlays()
 
-    # select on randomly
-    (r, c) = random.choice(playable)
+    # select one randomly
+    (r, c) = random.choice(tuple(plays))
 
     # play it
     g.playCell(r, c)
@@ -31,7 +36,6 @@ def doAllDetermined(g):
         flagRet = flagDeterminedCells(g)
         playRet = playDeterminedCells(g)
         updated = playRet or flagRet
-
     return
 
 
@@ -42,22 +46,22 @@ def playDeterminedCells(g):
     '''
 
     # find all determined cells
+    shownCells = g.getShownCells()
     playable = []
-    for r in range(1, g.numRows + 1):
-        for c in range(1, g.numCols + 1):
-            if g.isShown(g.field[r, c]):
-                neigh = g.getFieldNeighborhood(r, c)
-                numFlagged = np.sum(g.isFlagged(neigh))
-                numHidden = np.sum(~g.isShown(neigh))
-                if g.getNumber(g.field[r, c]) == numFlagged and numHidden > 0:
-                    playable.append((r, c))
+    for (r, c) in shownCells:
+        neigh = g.getFieldNeighborhood(r, c)
+        numFlagged = np.sum(g.isFlagged(neigh))
+        numHidden = np.sum(~g.isShown(neigh))
+        if g.getNumber(g.field[r, c]) == numFlagged and numHidden > 0:
+            playable.append((r, c))
 
     # play the remaining neighbors of each determined cell
     played = False
+    validPlays = g.getValidPlays()
     for (rCent, cCent) in playable:
         for r in range(rCent - 1, rCent + 2):
             for c in range(cCent - 1, cCent + 2):
-                if not g.isFlagged(g.field[r, c]) and not g.isShown(g.field[r, c]):
+                if (r, c) in validPlays:
                     played = True
                     g.playCell(r, c)
 
@@ -70,22 +74,22 @@ def flagDeterminedCells(g):
     '''
 
     # find all determined cells
+    shownCells = g.getShownCells()
     flaggable = []
-    for r in range(1, g.numRows + 1):
-        for c in range(1, g.numCols + 1):
-            if g.isShown(g.field[r, c]):
-                neigh = g.getFieldNeighborhood(r, c)
-                numFlagged = np.sum(g.isFlagged(neigh))
-                numHidden = np.sum(~g.isShown(neigh) & ~g.isFlagged(neigh))
-                if g.getNumber(g.field[r, c]) == numFlagged + numHidden and numHidden > 0:
-                    flaggable.append((r, c))
+    for (r, c) in shownCells:
+        neigh = g.getFieldNeighborhood(r, c)
+        numFlagged = np.sum(g.isFlagged(neigh))
+        numHidden = np.sum(~g.isShown(neigh) & ~g.isFlagged(neigh))
+        if g.getNumber(g.field[r, c]) == numFlagged + numHidden and numHidden > 0:
+            flaggable.append((r, c))
 
-    # play the remaining neighbors of each determined cell
+    # flag the remaining neighbors of each determined cell
     flagged = False
+    validPlays = g.getValidPlays()
     for (rCent, cCent) in flaggable:
         for r in range(rCent - 1, rCent + 2):
             for c in range(cCent - 1, cCent + 2):
-                if not g.isFlagged(g.field[r, c]) and not g.isShown(g.field[r, c]):
+                if (r, c) in validPlays:
                     flagged = True
                     g.flagCell(r, c)
 
