@@ -2,7 +2,7 @@ from game import *
 from player import *
 
 
-testNum = 2
+testNum = 0
 
 if testNum == 0:
     # small, winnable
@@ -26,6 +26,21 @@ elif testNum == 3:
 elif testNum == 4:
     # basic player loses
     g = Game(25, 50, 250, 6, True)
+    basicPlayer(g)
+elif testNum == 5:
+    # official beginner
+    # https://minesweepergame.com/ranking-rules.php
+    g = Game(8, 8, 10, 3, True)
+    basicPlayer(g)
+elif testNum == 6:
+    # official intermediate
+    # https://minesweepergame.com/ranking-rules.php
+    g = Game(16, 16, 40, 2, True)
+    basicPlayer(g)
+elif testNum == 7:
+    # official expert
+    # https://minesweepergame.com/ranking-rules.php
+    g = Game(16, 30, 99, 5, True)
     basicPlayer(g)
 else:
     pass

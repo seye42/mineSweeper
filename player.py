@@ -2,15 +2,24 @@ import numpy as np
 import random
 
 
-'''
-TODO: Think about what auxiliary lists make sense to build in to Game so that so much looping
-isn't required here. Maybe that's shown and flagged lists or something similar.
-'''
+def brutePlayer(g):
+    while True:
+        playRandomCell(g)
+
 
 def basicPlayer(g):
     while True:
         playRandomCell(g)
         doAllDetermined(g)
+
+
+def patternPlayer(g):
+    while True:
+        playRandomCell(g)
+        doAllDetermined(g)
+
+        # 1-2-x pattern
+        # 1-1-x pattern
 
 
 def playRandomCell(g):
@@ -61,7 +70,7 @@ def playDeterminedCells(g):
     for (rCent, cCent) in playable:
         for r in range(rCent - 1, rCent + 2):
             for c in range(cCent - 1, cCent + 2):
-                if (r, c) in validPlays:
+                if (r, c) in validPlays:  # TODO: replace with some sort of isValidPlay(r, c)?
                     played = True
                     g.playCell(r, c)
 

@@ -3,11 +3,7 @@ import random
 import time
 
 
-class Win(Exception):
-    pass
-
-
-class Lose(Exception):
+class GameOver(Exception):
     pass
 
 
@@ -28,7 +24,7 @@ class DisplaySymbols:
                 '\033[38;2;0;102;0m'     + '7',
                 '\033[38;2;192;192;192m' + '8']
 
-    # last play background highlight toggles    
+    # last play background highlight toggles
     PLAY  = '\033[48;2;110;110;110m'
     RESET = '\033[0m'
 
@@ -58,18 +54,20 @@ class Game:
     def __init__(self, numRows, numCols, numMines, randSeed=None, printSummary=False):
         # check that parameters are reasonable
         if numRows < 1 or numCols < 1:
-            raise ValueError('invalid game size (%d x %d)' % (numRows, numCols))
+            raise ValueError('invalid game size')
         if numMines < 0:
             raise ValueError('number of mines must be non-negative')
-        if numMines > (numRows * numCols -1):
-            # there must be at least one free cell for the rule that one cannot lose on the first play
-            raise ValueError('too many mines (maximum is %d)' % (numRows * numCols - 1))
+        if numMines > (numRows - 1) * (numCols - 1):
+            # see https://minesweepergame.com/ranking-rules.php, this also guarantees that the first-play mine
+            # relocation logic can find a non-mine space
+            raise ValueError('too many mines (maximum is %d for this game size)' % (numRows - 1) * (numCols - 1))
 
         # register the parameters
-        self.printSummary = printSummary
         self.numRows = numRows
         self.numCols = numCols
         self.numMines = numMines
+        self.randSeed = randSeed
+        self.printSummary = printSummary
         self.startTime = time.time()
 
         # seed the random number generator (for repeatable games)
@@ -82,8 +80,8 @@ class Game:
         # populate the field's mines
         mineIdx = random.sample(range(numRows * numCols), numMines)
         for idx in mineIdx:
-            r = idx // numCols + 1  # +1 for virtual borders
-            c = idx %  numCols + 1  # +1 for virtual borders
+            r = (idx // numCols) + 1  # +1 for virtual borders
+            c = (idx %  numCols) + 1  # +1 for virtual borders
             self.setMine(r, c)
 
         # populate the field's numerical clues
@@ -102,6 +100,7 @@ class Game:
         self.numFlagPlays = 0
         self.numShowPlays = 0
         self.lastPlay = (0, 0)
+        self.won = False
 
         # initialize cell sets
         self.validPlays = set()
@@ -110,6 +109,7 @@ class Game:
                 self.validPlays.add((r, c))
         self.shownCells = set()
         self.flaggedCells = set()
+
 
     def isMine(self, field):
         return np.bitwise_and(field, self.MINE_MASK).astype(bool)
@@ -262,7 +262,8 @@ class Game:
                 self.elapsedTime = self.stopTime - self.startTime
                 if self.printSummary:
                     self.printOutSummary()
-                raise Lose
+                self.won = False
+                raise GameOver(self.summarize())
         if self.getNumber(self.field[r, c]) == 0:  # empty cell -- expand
             self.floodFillPlay(r, c)
         self.checkVictoryConditions()
@@ -297,7 +298,7 @@ class Game:
                     cells.add((rU, c))
                 if num == 0 and not self.isShown(self.field[rD, c]):
                     cells.add((rD, c))
-                # first and last rows are safe because self.field is initialized to show
+                # first and last rows are safe because self.field is initialized to show the border
 
 
     def display(self):
@@ -331,9 +332,11 @@ class Game:
     def checkVictoryConditions(self):
         # check that all number cells are shown and all mines are flagged
         if len(self.validPlays) > 0:
+            # still valid plays remaining
             return
         for r in range(1, self.numRows + 1):  # skip virtual borders
             for c in range(1, self.numCols + 1):  # skip virtual borders
+                # TODO: drop the first clause of the compound?
                 if (not self.isMine(self.field[r, c]) and not self.isShown(self.field[r, c])) or \
                    (self.isMine(self.field[r, c]) and not self.isFlagged(self.field[r, c])):
                     return  # not yet done
@@ -341,23 +344,40 @@ class Game:
         self.elapsedTime = self.stopTime - self.startTime
         if self.printSummary:
             self.printOutSummary()
-        raise Win
+        self.won = True
+        raise GameOver(self.summarize())
 
 
     def summarize(self):
-        numCellShown = np.sum(self.isShown(self.field[1:-1, 1:-1]))
-        numCellFlagged = np.sum(self.isFlagged(self.field[1:-1, 1:-1]))
-        numCellHidden = self.numRows * self.numCols - numCellShown - numCellFlagged
-        return (numCellShown, numCellFlagged, numCellHidden)
+        d = {}
+        d['numRows']      = self.numRows
+        d['numCols']      = self.numCols
+        d['numMines']     = self.numMines
+        d['randSeed']     = self.randSeed
+        d['numFlagPlays'] = self.numFlagPlays
+        d['numShowPlays'] = self.numShowPlays
+        d['lastPlay']     = self.lastPlay
+        d['startTime']    = self.startTime
+        d['stopTime']     = self.stopTime
+        d['elapsedTime']  = self.elapsedTime
+        d['won']          = self.won
+        d['numCells']       = self.numRows * self.numCols
+        d['numCellShown']   = np.sum(self.isShown(self.field[1:-1, 1:-1]))
+        d['numCellFlagged'] = np.sum(self.isFlagged(self.field[1:-1, 1:-1]))
+        d['numCellHidden']  = d['numCells'] - d['numCellShown'] - d['numCellFlagged']
+        d['fractMines']     = float(self.numMines) / d['numCells']
+        d['fractShown']     = float(d['numCellShown']) / d['numCells']
+        d['fractFlagged']   = float(d['numCellFlagged']) / d['numCells']
+        d['fractHidden']    = float(d['numCellHidden']) / d['numCells']
+        return d
 
 
     def printOutSummary(self):
         self.display()
-        (numCellShown, numCellFlagged, numCellHidden) = self.summarize()
-        numCells = self.numRows * self.numCols
-        print('%d x %d (%d cells) gameboard with %d mines (%0.2f%%)' \
-              % (self.numRows, self.numCols, numCells, self.numMines, float(self.numMines) / numCells))
-        print('  cells shown:   %d (%0.2f%%)' % (numCellShown, float(numCellShown) / numCells))
-        print('  cells flagged: %d (%0.2f%%)' % (numCellFlagged, float(numCellFlagged) / numCells))
-        print('  cells hidden:  %d (%0.2f%%)' % (numCellHidden, float(numCellHidden) / numCells))
-        print('  elapsed time:  %0.3f s' % self.elapsedTime)
+        d = self.summarize()
+        print('%d x %d (%d cells) gameboard with %d mines (%0.1f%%)' \
+              % (d['numRows'], d['numCols'], d['numCells'], d['numMines'], d['fractMines'] * 100.0))
+        print('  cells shown:   %d (%0.1f%%)' % (d['numCellShown'], d['fractShown'] * 100.0))
+        print('  cells flagged: %d (%0.1f%%)' % (d['numCellFlagged'], d['fractFlagged'] * 100.0))
+        print('  cells hidden:  %d (%0.1f%%)' % (d['numCellHidden'], d['fractHidden'] * 100.0))
+        print('  elapsed time:  %0.3f s' % d['elapsedTime'])
